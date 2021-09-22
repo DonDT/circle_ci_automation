@@ -1,14 +1,130 @@
 # This config is equivalent to both the '.circleci/extended/orb-free.yml' and the base '.circleci/config.yml'
 version: 2.1
 
-orbs:
-  node: circleci/node@4.1
+jobs: 
+  # Initial installations and checks.
+  build:
+    docker:
+      - image: circleci/node:14.17.6
+    working_directory: ~/repo
+    steps: 
+      - checkout
+      - run: 
+          name: show current branch
+          command: echo ${CURRENT_BRANCH}
+      - restore_cache:
+          key:
+            - app-{{checksum "package.json"}}   
+            - app-
+      - run: 
+          name: Install dependencies
+          command: npm install      
+      - save_cache:
+          path: 
+            - node_modules
+          key: app-{{checksum "package.json"}}    
 
-workflows:
-  sample:
-    jobs:
-      - node/test:
-          version: '15.1'
-          # This is the node version to use for the `cimg/node` tag
-          # Relevant tags can be found on the CircleCI Developer Hub
-          # https://circleci.com/developer/images/image/cimg/node
+  # Deploy.
+  deploy-to-aws-s3:
+    docker:
+      - image: circleci/node:14.17.6
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Show current branch
+          command: echo ${{CURRENT_BRANCH}} 
+      - run:
+          name: Installing AWS CLI
+          working_directory: /
+          command: |
+            sudo apt-get -y -qq update
+            sudo apt-get install -y awscli
+            sudo apt-get install -y python-pip python-dev build-essential 
+      - run:
+          name: Build Project
+          command: |
+            npm install
+            npm run build
+            cd build
+            zip ../build.zip -r * .[^.]*
+            echo "Build successful"  
+      # deploy to aws s3
+      - run:
+          name: Deploy to aws s3
+          command: |
+            if ["${CURRENT_BRANCH}" == "master"]
+            then
+              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_PRODUCTION} --delete
+            elif ["${CURRENT_BRANCH}" == "staging"]
+            then
+              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_STAGING} --delete
+            else
+              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_DEV_BUCKET} --delete
+            fi  
+
+  # Cloudfront.
+  deploy-to-aws-cloudfront:
+    docker:
+      - image: circleci/node:14.17.6
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Show current branch
+          command: echo ${{CURRENT_BRANCH}} 
+      - run:
+          name: Installing AWS CLI
+          working_directory: /
+          command: |
+            sudo apt-get -y -qq update
+            sudo apt-get install -y awscli
+            sudo apt-get install -y python-pip python-dev build-essential 
+      - run:
+          name: Build Project
+          command: |
+            npm install
+            npm run build
+            cd build
+            zip ../build.zip -r * .[^.]*
+            echo "Build successful"  
+      # deploy to aws cloudfront
+      - run:
+          name: Deploy to aws Cloudfront
+          command: |
+            aws configure set preview.cloudfront
+            if ["${CURRENT_BRANCH}" == "master"]
+            then
+              aws cloudfront create-invalidation --distribution-id ${PRODUCTION_DISTRIBUTION_ID} --path /\*
+            elif ["${CURRENT_BRANCH}" == "staging"]
+            then
+              aws cloudfront create-invalidation --distribution-id ${STAGING_DISTRIBUTION_ID} --path /\*
+            else
+              aws cloudfront create-invalidation --distribution-id ${DEV_DISTRIBUTION_ID} --path /\*
+            fi  
+
+  # workflow, implements jobs to run in what order
+  workflows:
+    build_and_deploy:
+      jobs:
+        - build
+        - deploy-to-aws-s3
+            requires:
+              - build
+            filters:
+              branches:
+                only:
+                  - develop
+                  - staging
+                  - master
+        - deploy-to-aws-cloudfront
+            requires:
+              - deploy-to-aws-s3
+            filters:
+              branches:
+                only:
+                  - develop
+                  - staging
+                  - master
+
+
