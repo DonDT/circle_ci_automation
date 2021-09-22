@@ -33,7 +33,7 @@ jobs:
       - checkout
       - run:
           name: Show current branch
-          command: echo ${{CIRCLE_BRANCH}}
+          command: echo ${CIRCLE_BRANCH}
       - run:
           name: Installing AWS CLI
           working_directory: /
@@ -72,7 +72,7 @@ jobs:
       - checkout
       - run:
           name: Show current branch
-          command: echo ${{CIRCLE_BRANCH}}
+          command: echo ${CIRCLE_BRANCH}
       - run:
           name: Installing AWS CLI
           working_directory: /
