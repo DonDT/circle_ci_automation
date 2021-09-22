@@ -61,7 +61,7 @@ jobs:
       - *show-current-branch-name
       - *install-aws-cli
       - *build-project
-      # deploy to aws s3
+      # deploy to aws s3 //
       - run:
           name: Deploy to aws s3
           command: |
