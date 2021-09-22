@@ -19,20 +19,20 @@ aliases:
   - &install-dependencies
     run:
       name: Install dependencies
-      command: npm install 
-  - &save-cache 
+      command: npm install
+  - &save-cache
     save_cache:
       paths:
         - node_modules
       key: app-{{checksum "package.json"}}
-  - &install-aws-cli   
+  - &install-aws-cli
     run:
       name: Installing AWS CLI
       working_directory: /
       command: |
         sudo apt-get -y -qq update
         sudo apt-get install -y awscli
-        sudo apt-get install -y python-pip python-dev build-essential   
+        sudo apt-get install -y python-pip python-dev build-essential
   - &build-project
     run:
       name: Build Project
@@ -43,8 +43,6 @@ aliases:
         zip ../build.zip -r * .[^.]*
         echo "Build successful"
 
-
-
 jobs:
   # Initial installations and checks.
   build:
@@ -54,7 +52,7 @@ jobs:
       - *show-current-branch-name
       - *restore-cache
       - *install-dependencies
-      - *save_cache
+      - *save-cache
   # Deploy.
   deploy-to-aws-s3:
     executor: app-executor
