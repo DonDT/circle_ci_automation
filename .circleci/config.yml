@@ -108,7 +108,7 @@ jobs:
     notify-via-slack:
       executor: slack-executor
       steps:
-        - run: echo " Slack notification(s)"
+        - run: echo "Slack notification"
         - slack/notify:
             event: "always"
             channel: "film-app-automation"
@@ -150,7 +150,7 @@ jobs:
                     ]
                   },
                   {
-                    type: "actions",
+                    "type": "actions",
                     "elements": [
                       {
                         "type": "button",
