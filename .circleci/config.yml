@@ -11,6 +11,9 @@ executors:
     docker:
       - image: "cibuilds/base:latest"
     resource_class: small
+  terraform-executor:
+    docker:
+      - image: hashicorp/terraform:1.0.8
 
 aliases:
   - &show-current-branch-name
@@ -79,11 +82,53 @@ jobs:
       - run:
           name: Run prettier
           command: npm run prettier:check
+  # Terraform
+  terraform-validate:
+    executor: terraform-executor
+    steps:
+      - checkout
+      - *show-current-branch-name
+      - run:
+          name: Terraform Validate and Format
+          command: |
+            cd infrastructure
+            terraform init -backend=false
+            terraform validate
+            terraform fmt -check
+  terraform-plan-and-apply:
+    executor: terraform-executor
+    steps:
+      - checkout
+      - attach_workspace:
+        at: ./
+      - *show-current-branch-name
+      - run:
+          name: Terraform Plan
+          command: |
+            cd artifacts/infrastructure
+            terraform init 
+            terraform workspace select ${CIRCLE_BRANCH} || terraform workspace new ${CIRCLE_BRANCH}
+            terraform plan
+      - run:
+          name: Terraform Apply
+          command: |
+            cd artifacts/infrastructure
+            terraform init 
+            terraform workspace select ${CIRCLE_BRANCH} 
+            terraform apply  --auto-approve
+            terraform output film_app_bucket_name > ../film_bucket_name.txt
+            terraform output cloudfront_distribution_id > ../cloudfront_distribution_id.txt
+      - persist_to_workspace:
+          root: ./
+          path:
+            - artifacts
   # Deploy.
   deploy-to-aws-s3:
     executor: app-executor
     steps:
       - checkout
+      - attach_workspace:
+          at: ./
       - *show-current-branch-name
       - *install-aws-cli
       - *build-project
@@ -91,19 +136,17 @@ jobs:
       - run:
           name: Deploy to aws s3
           command: |
+            AWS_BUCKET_NAME=$(cat artifacts/film_bucket_name.txt | sed 's/\"//g')
+            echo AWS_BUCKET_NAME
             if ["${CIRCLE_BRANCH}" == "master"]
             then
-              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_PRODUCTION} --delete
+              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_NAME} --delete
             elif ["${CIRCLE_BRANCH}" == "develop"]
             then
-              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_DEV_BUCKET} --delete
+              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_NAME} --delete
             else
-              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_STAGING} --delete
+              aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_NAME} --delete
             fi
-  test:
-    executor: app-executor
-    steps:
-      - run: echo "test my app"
 
   notify-via-slack:
     executor: slack-executor
@@ -137,7 +180,7 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*When*:\n$(date + '%m/%d/%Y %T')"
+                      "text": "*When*:\n$(date +'%m/%d/%Y %T')"
                     },
                     {
                       "type": "mrkdwn",
@@ -170,6 +213,8 @@ jobs:
     executor: app-executor
     steps:
       - checkout
+      - attach_workspace:
+          at: ./
       - *show-current-branch-name
       - *install-aws-cli
       - *build-project
@@ -177,64 +222,111 @@ jobs:
       - run:
           name: Deploy to aws Cloudfront
           command: |
+            CLOUDFRONT_DISTRIBUTION_ID=$(cat artifacts/cloudfront_distribution_id.txt | sed 's/\"//g')
+            echo AWS_BUCKET_NAME
             aws configure set preview.cloudfront true
             if ["${CIRCLE_BRANCH}" == "master"]
             then
-              aws cloudfront create-invalidation --distribution-id ${PRODUCTION_DISTRIBUTION_ID} --path /\*
+              aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} --path /\*
             elif ["${CIRCLE_BRANCH}" == "staging"]
             then
-              aws cloudfront create-invalidation --distribution-id ${STAGING_DISTRIBUTION_ID} --path /\*
+              aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} --path /\*
             else
-              aws cloudfront create-invalidation --distribution-id ${DEV_DISTRIBUTION_ID} --path /\*
+              aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} --path /\*
             fi
+  # Terraform destroy
+  terraform-destroy:
+    executor: terraform-executor
+    steps:
+      - checkout
+      - *show-current-branch-name
+      - run:
+          name: Terraform Destroy
+          command: |
+            cd artifacts/infrastructure/
+            terraform init
+            terraform workspace select ${CIRCLE_BRANCH} || terraform workspace new ${CIRCLE_BRANCH}
+            terraform destroy --auto-approve
 
   # workflow, implements jobs to run in what order
 workflows:
   build_and_deploy:
     jobs:
-      - test
-      - notify-via-slack:
+      - build
+      - linting:
           requires:
-            - test
+            - build
           filters:
             branches:
               only:
                 - develop
                 - staging
                 - master
-      # - prettier:
-      #     requires:
-      #       - build
-      #     filters:
-      #       branches:
-      #         only:
-      #           - develop
-      #           - staging
-      #           - master
-      # - deploy-to-aws-s3:
-      #     requires:
-      #       - prettier
-      #     filters:
-      #       branches:
-      #         only:
-      #           - develop
-      #           - staging
-      #           - master
-      # - deploy-to-aws-cloudfront:
-      #     requires:
-      #       - deploy-to-aws-s3
-      #     filters:
-      #       branches:
-      #         only:
-      #           - develop
-      #           - staging
-      #           - master
-      # - notify-via-slack:
-      #     requires:
-      #       - deploy-to-aws-cloudfront
-      #     filters:
-      #       branches:
-      #         only:
-      #           - develop
-      #           - staging
-      #           - master
+      - prettier:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - develop
+                - staging
+                - master
+      - terraform-validate:
+          requires:
+            - linting
+            - prettier
+          filters:
+            branches:
+              only:
+                - develop
+                - staging
+                - master
+      - terraform-plan-and-apply:
+          requires:
+            - terraform-validate
+          filters:
+            branches:
+              only:
+                - develop
+                - staging
+                - master
+      - deploy-to-aws-s3:
+          requires:
+            - terraform-plan-and-apply
+          filters:
+            branches:
+              only:
+                - develop
+                - staging
+                - master
+      - deploy-to-aws-cloudfront:
+          requires:
+            - deploy-to-aws-s3
+          filters:
+            branches:
+              only:
+                - develop
+                - staging
+                - master
+      - notify-via-slack:
+          requires:
+            - deploy-to-aws-cloudfront
+          filters:
+            branches:
+              only:
+                - develop
+                - staging
+                - master
+      - hold:
+          type: approval
+          requires:
+            - deploy-to-aws-cloudfront
+      - terraform-destroy:
+          requires:
+            - hold
+          filters:
+            branches:
+              only:
+                - develop
+                - staging
+                - master
