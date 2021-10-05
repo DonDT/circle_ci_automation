@@ -70,7 +70,7 @@ jobs:
           command: cp -r infrastructure artifacts/infrastructure
       - persist_to_workspace:
           root: ./
-          path:
+          paths:
             - artifacts
   # Es-lint
   linting:
