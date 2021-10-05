@@ -62,6 +62,13 @@ jobs:
       - *restore-cache
       - *install-dependencies
       - *save-cache
+      - run:
+          name: Copy infrastructure folder
+          command: cp -r infrastructure artifacts/infrastructure
+      - persist_to_workspace:
+          root: ./
+          path:
+            - artifacts
   # Es-lint
   linting:
     executor: app-executor
