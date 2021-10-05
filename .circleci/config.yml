@@ -113,14 +113,13 @@ jobs:
           name: Terraform Apply
           command: |
             cd artifacts/infrastructure
-            terraform init 
             terraform workspace select ${CIRCLE_BRANCH} 
             terraform apply  --auto-approve
             terraform output film_app_bucket_name > ../film_bucket_name.txt
             terraform output cloudfront_distribution_id > ../cloudfront_distribution_id.txt
       - persist_to_workspace:
           root: ./
-          path:
+          paths:
             - artifacts
   # Deploy.
   deploy-to-aws-s3:
