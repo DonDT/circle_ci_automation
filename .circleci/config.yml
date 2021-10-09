@@ -141,7 +141,7 @@ jobs:
       - *show-current-branch-name
       - *install-aws-cli
       - *build-project
-      # deploy to aws s3
+      # deploy to aws s3 //
       - run:
           name: Deploy to aws s3
           command: |
@@ -149,6 +149,7 @@ jobs:
             echo $AWS_BUCKET_NAME
             if ["${CIRCLE_BRANCH}" == "master"]
             then
+
               aws --region ${AWS_REGION} s3 sync ~/repo/build s3://${AWS_BUCKET_NAME} --delete
             elif ["${CIRCLE_BRANCH}" == "develop"]
             then
