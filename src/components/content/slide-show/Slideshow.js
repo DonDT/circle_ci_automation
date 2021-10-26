@@ -33,7 +33,9 @@ const Slideshow = ({ images, auto }) => {
 
   // currentSlideIndex is declared once
   const autoMoveSlide = () => {
-    currentSlideIndex = currentSlideIndex + 1 >= images.length ? 0 : currentSlideIndex + 1;
+    let lastIndex = 0;
+    lastIndex = currentSlideIndex + 1;
+    currentSlideIndex = lastIndex >= images.length ? 0 : lastIndex;
 
     setState((prev) => ({
       ...prev,
