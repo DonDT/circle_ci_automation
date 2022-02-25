@@ -15,6 +15,7 @@ const Slideshow = ({ images, auto }) => {
   let currentSlideIndex = 0;
   //
   useEffect(() => {
+    setState({ ...state, slideIndex: 0, slideShow: images[0] });
     // just automatically render the carousel
     if (auto) {
       const timeInterval = setInterval(() => {
@@ -28,7 +29,7 @@ const Slideshow = ({ images, auto }) => {
         clearInterval(slideInterval);
       };
     }
-  }, []);
+  }, [images]);
   // eslint-disable-next-line
 
   // currentSlideIndex is declared once

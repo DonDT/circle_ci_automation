@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { connect } from "react-redux";
 import logo from "../../assets/cinema-logo.svg";
+import { getMovies, setMovieType, setResponsePageNumber } from "../../redux/actions/movies";
+import PropTypes from "prop-types";
 import "./header.scss";
 
 const HEADER_LIST = [
@@ -29,9 +32,23 @@ const HEADER_LIST = [
   }
 ];
 
-const header = () => {
+const Header = (props) => {
+  const { getMovies, setMovieType, page, totalPages, setResponsePageNumber } = props;
   let [navClass, setNavClass] = useState(false);
   let [menuClass, setMenuClass] = useState(false);
+  const [type, setType] = useState("Now playing");
+
+  useEffect(() => {
+    getMovies(type, page);
+    setResponsePageNumber(page, totalPages);
+
+    // eslint-disable-next-line
+  }, [type]);
+
+  const setMovieTypeUrl = (type, name) => {
+    setType(type);
+    setMovieType(name);
+  };
 
   const toggleMenu = () => {
     menuClass = !menuClass;
@@ -60,7 +77,7 @@ const header = () => {
           </div>
           <ul className={`${navClass ? "header-nav header-mobile-nav" : "header-nav"}`}>
             {HEADER_LIST.map((data) => (
-              <li className="header-nav-item" key={data.id}>
+              <li className="header-nav-item" key={data.id} onClick={() => setMovieTypeUrl(data.type, data.name)}>
                 <span className="header-list-name">
                   <i className={data.iconClass}></i>
                 </span>
@@ -76,4 +93,19 @@ const header = () => {
   );
 };
 
-export default header;
+Header.propTypes = {
+  getMovies: PropTypes.func.isRequired,
+  setMovieType: PropTypes.func,
+  setResponsePageNumber: PropTypes.func,
+  //  list: PropTypes.array,
+  page: PropTypes.number,
+  totalPages: PropTypes.number
+};
+
+const mapStateToProps = (state) => ({
+  // list: state.movies.list,
+  page: state.movies.page,
+  totalPages: state.movies.totalPages
+});
+
+export default connect(mapStateToProps, { getMovies, setMovieType, setResponsePageNumber })(Header);

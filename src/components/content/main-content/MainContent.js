@@ -1,29 +1,43 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Slideshow from "../slide-show/Slideshow";
 import Paginate from "../paginate/paginate";
 import Grid from "../grid/Grid";
 import "./MainContent.scss";
+import { connect } from "react-redux";
+import PropTypes from "prop-types";
+import { IMAGE_URL } from "../../../services/movies.services";
 
-const MainContent = () => {
-  const images = [
-    { url: "https://images.unsplash.com/photo-1541963463532-d68292c34b19?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxleHBsb3JlLWZlZWR8Mnx8fGVufDB8fHx8&w=1000&q=80", rating: 7.5 },
-    { url: "https://helpx.adobe.com/content/dam/help/en/photoshop/using/convert-color-image-black-white/jcr_content/main-pars/before_and_after/image-before/Landscape-Color.jpg", rating: 8.5 },
-    { url: "https://i.redd.it/t2rgdkd42rf71.jpg", rating: 9.5 },
-    {
-      url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTYIX4fdymadei7FiL-19pxFAWPLEJgQlNEww&usqp=CAU",
-      rating: 5.5
-    },
-    {
-      url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT1tq3xaYg_OFU0Rn3_EwCbR_M7_-9aVPaH5g&usqp=CAU",
-      rating: 7
-    },
-    {
-      url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS8Dui-CG5_VcIxTHxks0tTiME_1rIvYeIfMA&usqp=CAU",
-      rating: 5
-    }
-  ];
+const MainContent = (props) => {
+  const { list, movieType } = props;
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [images, setImages] = useState([]);
+
+  const randomMovies = list.sort(() => Math.random() - Math.random()).slice(0, 4);
+
+  useEffect(() => {
+    if (randomMovies.length) {
+      const IMAGES = [
+        {
+          id: 1,
+          url: `${IMAGE_URL}/${randomMovies[0].backdrop_path}`
+        },
+        {
+          id: 2,
+          url: `${IMAGE_URL}/${randomMovies[1].backdrop_path}`
+        },
+        {
+          id: 3,
+          url: `${IMAGE_URL}/${randomMovies[2].backdrop_path}`
+        },
+        {
+          id: 4,
+          url: `${IMAGE_URL}/${randomMovies[3].backdrop_path}`
+        }
+      ];
+      setImages(IMAGES);
+    }
+  }, []);
 
   const paginate = (type) => {
     if (type === "prev" && currentPage >= 1) {
@@ -33,18 +47,28 @@ const MainContent = () => {
 
   return (
     <div className="main-content">
-      <Slideshow currentSlide={0} images={images} auto={true} />
+      <Slideshow currentSlide={0} images={images} auto={false} />
       {/* Slidshow component */}
       <div className="grid-movie-title">
-        <div className="movieType">Now Playing </div>
+        <div className="movieType"> {movieType} </div>
         <div className="paginate">
           <Paginate paginate={paginate} currentPage={currentPage} totalPages={10} />
         </div>
       </div>
       {/* Display Grid component */}
-      <Grid images={images} />
+      <Grid />
     </div>
   );
 };
 
-export default MainContent;
+MainContent.propTypes = {
+  list: PropTypes.array.isRequired,
+  movieType: PropTypes.string.isRequired
+};
+
+const mapStateToProps = (state) => ({
+  list: state.movies.list,
+  movieType: state.movies.movieType
+});
+
+export default connect(mapStateToProps, {})(MainContent);
